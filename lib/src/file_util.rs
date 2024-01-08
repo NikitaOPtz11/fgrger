@@ -14,7 +14,7 @@
 
 #![allow(missing_docs)]
 
-use std::fs::File;
+use std::fs::{self, File};
 use std::path::{Component, Path, PathBuf};
 use std::{io, iter};
 
@@ -40,6 +40,25 @@ impl<T> IoResultExt<T> for io::Result<T> {
             error,
         })
     }
+}
+
+/// Creates a directory and returns it's canonicalized path.
+///
+/// If the directory already exists, will only return it's canonicalized path
+/// without doing anything.
+///
+/// Returns the underlying error if the directory can't be created.
+/// The function will also fail if intermediate directories on the path do not
+/// already exist.
+pub fn create_or_reuse_dir(dirname: &Path) -> std::io::Result<PathBuf> {
+    match fs::create_dir(dirname) {
+        Ok(()) => {}
+        Err(_) if dirname.is_dir() => {}
+        Err(e) => return Err(e),
+    }
+
+    // if it fails, race condition?
+    dirname.canonicalize()
 }
 
 /// Turns the given `to` path into relative path starting from the `from` path.
