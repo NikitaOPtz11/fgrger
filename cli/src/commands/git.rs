@@ -59,6 +59,7 @@ use crate::ui::Ui;
 pub enum GitCommand {
     #[command(subcommand)]
     Remote(GitRemoteCommand),
+    Init(GitInitArgs),
     Fetch(GitFetchArgs),
     Clone(GitCloneArgs),
     Push(GitPushArgs),
@@ -107,6 +108,35 @@ pub struct GitRemoteRenameArgs {
 /// List Git remotes
 #[derive(clap::Args, Clone, Debug)]
 pub struct GitRemoteListArgs {}
+
+/// Initialize a Git backend repo.
+#[derive(clap::Args, Clone, Debug)]
+pub struct GitInitArgs {
+    /// The directory to write the Jujutsu repo to.
+    /// If not specified, defaults to the current working directory.
+    #[arg(default_value = ".", value_hint = clap::ValueHint::DirPath)]
+    destination: Option<String>,
+
+    /// Specifies that the Jujutsu repo should also be a valid
+    /// `git` repo, allowing the use of both `jj` and `git` commands
+    /// in the same directory.
+    ///
+    /// This is done by placing the backing git repo into a `.git` folder
+    /// in the root of the Jujutsu repo along with the `.jj` folder.
+    ///
+    /// This option is exclusive with the --git-repo param.
+    #[arg(long, conflicts_with = "git_repo")]
+    colocated: bool,
+
+    /// Specifies an explicit path to place the git repo directory.
+    /// If not specified and --colocated **is not** specified,
+    /// this will default to `$destination/.jj/repo/store/git`
+    ///
+    /// if not specifed and --colocated **is** specified, this will
+    /// default to `$destination/.git`
+    #[arg(long, conflicts_with = "colocated", value_hint = clap::ValueHint::DirPath)]
+    git_repo: Option<String>,
+}
 
 /// Fetch from a Git remote
 #[derive(clap::Args, Clone, Debug)]
@@ -318,6 +348,16 @@ fn cmd_git_remote_list(
             remote.url().unwrap_or("<no URL>")
         )?;
     }
+    Ok(())
+}
+
+fn cmd_git_init(
+    ui: &mut Ui,
+    command: &CommandHelper,
+    args: &GitInitArgs,
+) -> Result<(), CommandError> {
+    Workspace::create_workspace_root(&command.cwd().join(&args.destination))
+        .map_err(|e| user_error(format!("Failed to create workspace: {e}")))?;
     Ok(())
 }
 
@@ -1162,6 +1202,7 @@ pub fn cmd_git(
     subcommand: &GitCommand,
 ) -> Result<(), CommandError> {
     match subcommand {
+        GitCommand::Init(args) => cmd_git_init(ui, command, args),
         GitCommand::Fetch(args) => cmd_git_fetch(ui, command, args),
         GitCommand::Clone(args) => cmd_git_clone(ui, command, args),
         GitCommand::Remote(GitRemoteCommand::Add(args)) => cmd_git_remote_add(ui, command, args),
