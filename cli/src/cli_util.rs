@@ -16,7 +16,7 @@ use std::collections::{HashMap, HashSet};
 use std::env::{self, ArgsOs, VarError};
 use std::ffi::{OsStr, OsString};
 use std::fmt::Debug;
-use std::io::Write as _;
+use std::io::{self, Write as _};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -63,6 +63,7 @@ use jj_lib::signing::SignInitError;
 use jj_lib::str_util::{StringPattern, StringPatternParseError};
 use jj_lib::transaction::Transaction;
 use jj_lib::tree::TreeMergeError;
+use jj_lib::view::View;
 use jj_lib::working_copy::{
     CheckoutStats, LockedWorkingCopy, ResetError, SnapshotError, SnapshotOptions, WorkingCopy,
     WorkingCopyStateError,
@@ -1943,6 +1944,39 @@ Discard the conflicting changes with `jj restore --from {}`.",
     Ok(())
 }
 
+pub fn print_trackable_remote_branches(ui: &Ui, view: &View) -> io::Result<()> {
+    let remote_branch_names = view
+        .branches()
+        .filter(|(_, branch_target)| branch_target.local_target.is_present())
+        .flat_map(|(name, branch_target)| {
+            branch_target
+                .remote_refs
+                .into_iter()
+                .filter(|&(_, remote_ref)| !remote_ref.is_tracking())
+                .map(move |(remote, _)| format!("{name}@{remote}"))
+        })
+        .collect_vec();
+    if remote_branch_names.is_empty() {
+        return Ok(());
+    }
+
+    writeln!(
+        ui.hint(),
+        "The following remote branches aren't associated with the existing local branches:"
+    )?;
+    let mut formatter = ui.stderr_formatter();
+    for full_name in &remote_branch_names {
+        write!(formatter, "  ")?;
+        writeln!(formatter.labeled("branch"), "{full_name}")?;
+    }
+    drop(formatter);
+    writeln!(
+        ui.hint(),
+        "Hint: Run `jj branch track {names}` to keep local branches updated on future pulls.",
+        names = remote_branch_names.join(" "),
+    )?;
+    Ok(())
+}
 pub fn print_git_import_stats(ui: &mut Ui, stats: &GitImportStats) -> Result<(), CommandError> {
     if !stats.abandoned_commits.is_empty() {
         writeln!(
