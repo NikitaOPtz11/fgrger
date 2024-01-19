@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Deprecations
+
+* `jj checkout` and `jj merge` are both deprecated; use `jj new` instead to
+  replace both of these commands in all instances.
+
+  **Rationale**: `jj checkout` and `jj merge` implement two distinct pieces of
+  functionality, both of which are a subset of `jj new`. `checkout` only creates
+  a new working copy commit on top of a single specified revision, i.e. with one
+  parent. `merge` only creates a new working copy commit on top of *at least*
+  two specified revisions, i.e. with two or more parents, which is the
+  definition of a "merge commit".
+  
+  Both of these behaviors are functionally equivalent to `jj new`, which *also*
+  creates a new working copy commit; the difference is that `new` can create a
+  working copy commit on top of *any arbitrary number* of revisions, so it can
+  handle single-parent and multi-parent commits. In fact, `merge` was, just a
+  very small shim around the implementation of `new`, with a slightly different
+  syntax.
+
+  Furthermore, in the case of `checkout`, the name is wildly inaccurate and not
+  fitting for the functionality it provides; "checkout" is a neologism from the
+  days of RCS before 3-way merge, when individual files were "checked out" like
+  library books, implying exclusive locking. On the other hand, `merge`, while
+  not completely unfit as a name, is simply a redundant operation and its
+  existence somewhat obscures the general power of `new`. Rather than have three
+  or even two commands to remember for all these cases &mdash; it is much
+  simpler to have just one for every case.
+
+  We encourage all users to adopt `jj new` instead; it is shorter, more general,
+  and easier to remember than both of these.
+
+  `jj checkout` and `jj merge` will no longer be shown as part of `jj help`, but
+  will still function for now, emitting a warning about its deprecation.
+
+  **Deadline**: `jj checkout` will be deleted and is expected become a **hard
+  error in Jujutsu version 0.20.0**.
+
 ### Breaking changes
 
 ### New features
